@@ -1,0 +1,64 @@
+version: "3"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:3.3.3
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+
+  kafka:
+    image: confluentinc/cp-kafka:3.3.3
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+    restart: always
+
+  kafka-manager:
+    image: hlebalbau/kafka-manager:latest
+    command: -Dpidfile.path=/dev/null
+    depends_on:
+      - zookeeper
+    ports:
+      - 9000:9000
+    environment:
+      ZK_HOSTS: zookeeper:2181
+      APPLICATION_SECRET: secret
+    restart: always
+
+  bootstrap-config:
+    image: confluentinc/cp-kafka:3.3.3
+    command: kafka-bootstrap-config.sh
+    depends_on:
+      - zookeeper
+      - kafka
+      - kafka-manager
+    volumes:
+      - ./scripts/kafka-bootstrap-config.sh:/usr/local/bin/kafka-bootstrap-config.sh
+    environment:
+      ZK_HOSTS: zookeeper:2181
+      CLUSTER_NAME: primaryCluster
+      KAFKA_VERSION: "0.11.0.2"
+      KAFKA_TOPIC: example_topic
+      KAFKA_CONSUMER_GROUP: example_group
+    restart: on-failure
+
+  postgres:
+    image: postgres:10
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: kafka_ex_poc
